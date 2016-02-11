@@ -77,7 +77,7 @@ parsed.list = (parsed.list).toString();
 /* --------------------------------- */
 var checkPath = function(path2check, done){
 	// Verifie Si c'est dossier | fichiers
-	fs.stat(path2check , (err, stats) => {
+     	fs.stat(path2check , (err, stats) => {
 		if(err) throw kuler(err , "red");
 		// Si c'est un fichier
 		if(stats.isFile()){
