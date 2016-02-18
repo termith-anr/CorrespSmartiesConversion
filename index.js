@@ -1,4 +1,6 @@
-var cheerio = require('cheerio')
+'use strict';
+
+var cheerio = require('cheerio'),
 	kuler = require("kuler"),
 	args = require("args"),
 	async = require("async"),
@@ -50,7 +52,7 @@ if(parsed.attribut){
 /* ----------- */
 
 if(parsed.help){
-  // Affichage aide 
+  // Affichage aide
   console.info(options.getHelp());
   return;
 }
@@ -71,34 +73,6 @@ if(!parsed.list){
 parsed.input = (parsed.input).toString();
 parsed.list = (parsed.list).toString();
 
-
-/* --------------------------------- */
-/*  Recursive Check & load Files     */
-/* --------------------------------- */
-var checkPath = function(path2check, done){
-	// Verifie Si c'est dossier | fichiers
-     	fs.stat(path2check , (err, stats) => {
-		if(err) throw kuler(err , "red");
-		// Si c'est un fichier
-		if(stats.isFile()){
-		  done(path2check);
-		}
-		// Si c'ets un dossier.
-		else if(stats.isDirectory()){
-			fs.readdir(path2check , (err , list) => {
-				if(err) throw kuler(err , "red");
-				var filesToExecFolder = list.length;
-				if(!filesToExecFolder) return;
-				list.forEach((file) => {
-					file = path.resolve(path2check, file);
-					// Recursivité
-					checkPath(file,done);
-				});
-			});
-		}
-	});
-}
-
 // termObj will contains info of termEntries
 var termObj = {};
 
@@ -108,6 +82,7 @@ var termObj = {};
 /* --------------------*/
 fs.readFile(parsed.list, (err, data) => {
 	if(err) throw kuler(err , "red");
+
 	console.time("listeTBX");
 	//Charge la list TBX 1.4 dans cheerio
 	var $ = cheerio.load(data, {
@@ -131,22 +106,27 @@ fs.readFile(parsed.list, (err, data) => {
 		// termEntry suivant
 		next();
 
-	} , (err) => {
+	}, err => {
 		if(err) throw kuler(err , "red");
+
 		console.timeEnd("listeTBX");
 		//Tous termEntry Chargé , on charge corpus
-	 	checkPath(parsed.input, convertSpanCorresp);
-	}); 
+	 	checkPath(parsed.input, err => {
+	 		if (err) throw err;
+	 		console.log('ALL DONE');
+	 	});
+	});
 });
 
 /* --------------------*/
 /*  Load TBX 1.4 LIST  */
 /* --------------------*/
-var convertSpanCorresp = function(pathXML){
+function convertSpanCorresp(pathXML, callback) {
 
 	// Chargement fichier
-	fs.readFile(pathXML , (err , file) => {
-		if(err) throw kuler(err , "red");
+	fs.readFile(pathXML, (err, file) => {
+		if (err) return callback(err);
+
 		// Fichier dans cheerio
 		var $ = cheerio.load(file, {
 		  normalizeWhitespace: true,
@@ -154,10 +134,10 @@ var convertSpanCorresp = function(pathXML){
 		  decodeEntities : false
 		});
 
-		var spans = $('spanGrp[type="candidatsTermes"] span')
+		var spans = $('spanGrp[type="candidatsTermes"] span');
 
 		// Pour chaque span ...
-		async.each( spans , (span , nextSpan) => {
+		async.each(spans, (span, nextSpan) => {
 			var iSpan = $(span),
 					expressionL = "\"" + iSpan.attr("lemma") + "\"",
 					expression = expressionL.replace(/\s|_/g, '').toLowerCase(),
@@ -166,28 +146,30 @@ var convertSpanCorresp = function(pathXML){
 			var matched = {};
 
 			// Pour chaque obj de la list crée
-			async.each(termObj , (obj , nextObj) => {
+			async.each(termObj, (obj, nextObj) => {
 				if(obj.formList.indexOf(expression) > (-1)){
 					matched[obj.xmlid] = obj;
 				}
 				nextObj();
-			} , (err) => {
-				if(err) throw kuler(err , "red");
+			}, (err) => {
+				if(err) return callback(err);
+
 				var nbOfMatch = Object.keys(matched).length;
 				// Si il n'y a aucun match :
-				if( nbOfMatch < 1 ){
+				if (nbOfMatch < 1) {
 					// Si c'est un corresp avec attribut smarties (Obligatoire)
 					if(corresp.indexOf("smarties") > (-1)){
 						console.info("Pas de correspondance trouvé pour " + pathXML + " corresp : " + corresp)
 					}
 					// Sinon c'est juste un 2.0
-					else{
+					else {
 						iSpan.attr("corresp" , "#TS2.0-entry-" + (corresp).replace("#entry-" , ""));
 					}
-					return;
+					return nextSpan();
 				}
+
 				// Si plus d'un match => comparaison avec lemme
-				else if( nbOfMatch > 1){
+				else if (nbOfMatch > 1) {
 					var target = iSpan.attr("target").split(" "),
 							lemma = "";
 					//Recreation du lemme a partir des targets
@@ -216,20 +198,60 @@ var convertSpanCorresp = function(pathXML){
 				var ts1 = "#TS1.4-entry-" + (matched.xmlid).replace("#entry-" , ""),
 						ts2 = (corresp.indexOf("smarties") > (-1)) ? null : "#TS2.0-entry-" + (corresp).replace(/#entry-|#smarties-/ , ""),
 						ts  = ts2 ? ts2 + "-" + ts1 : ts1;
-				
+
 				iSpan.attr("corresp" , ts );
-			});
-			
-			nextSpan();
 
-		} , (err) => {
-			if(err) throw kuler(err , "red");
+				nextSpan();
+			});
+
+		}, (err) => {
+			if (err) return callback(err);
+
 			// Tous els spans traités , ecriture dans le fichier
-			fs.writeFile(pathXML , $.xml() , (err) => {
-				if(err) throw kuler(err , "red");
-			});
-		});  
-	
-	});
+			fs.writeFile(pathXML, $.xml(), callback);
+		});
 
+	});
 };
+
+/* --------------------------------- */
+/*  Recursive Check & load Files     */
+/* --------------------------------- */
+function checkPath(path2check, done) {
+	path2check = path.resolve(path2check);
+
+	// Verifie Si c'est dossier | fichiers
+  fs.stat(path2check , (err, stats) => {
+		if(err) throw kuler(err , "red");
+
+		// Si c'est un fichier
+		if (!stats.isDirectory()) {
+		  return convertSpanCorresp(path2check, done);
+		}
+
+		// Si c'ets un dossier.
+		fs.readdir(path2check , (err , list) => {
+			if (err) throw err;
+
+			var filesToExecFolder = list.length;
+			if(!filesToExecFolder) return;
+
+			(function parseNext() {
+				var file = list.pop();
+				if (!file) { return done(); }
+
+				file = path.resolve(path2check, file);
+				checkPath(file, err => {
+					if (err) return done(err);
+					parseNext();
+				});
+			})();
+
+			// list.forEach((file) => {
+			// 	file = path.resolve(path2check, file);
+			// 	// Recursivité
+			// 	checkPath(file,done);
+			// });
+		});
+	});
+}
