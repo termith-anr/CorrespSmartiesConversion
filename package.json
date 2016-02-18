@@ -1,0 +1,26 @@
+{
+  "name": "corresp",
+  "version": "1.0.0",
+  "description": "Use it to convert #smartie-XXX value in corresp attribut folder",
+  "main": "index.js",
+  "dependencies": {
+    "args": "0.0.3",
+    "async": "^1.5.2",
+    "cheerio": "^0.20.0",
+    "kuler": "0.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/termith-anr/CorrespSmartiesConversion.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/termith-anr/CorrespSmartiesConversion/issues"
+  },
+  "homepage": "https://github.com/termith-anr/CorrespSmartiesConversion#readme"
+}
