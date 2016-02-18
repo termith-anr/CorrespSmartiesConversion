@@ -74,7 +74,8 @@ parsed.input = (parsed.input).toString();
 parsed.list = (parsed.list).toString();
 
 // termObj will contains info of termEntries
-var termObj = {};
+var termObj = {},
+		nbDone  = 0;
 
 
 /* --------------------*/
@@ -113,16 +114,15 @@ fs.readFile(parsed.list, (err, data) => {
 		//Tous termEntry Chargé , on charge corpus
 	 	checkPath(parsed.input, err => {
 	 		if (err) throw err;
-	 		console.log('ALL DONE');
+	 		console.log(kuler('\n All done !' , "green"));
 	 	});
 	});
 });
 
 /* --------------------*/
-/*  Load TBX 1.4 LIST  */
+/*  convertSpanCorresp  */
 /* --------------------*/
 function convertSpanCorresp(pathXML, callback) {
-
 	// Chargement fichier
 	fs.readFile(pathXML, (err, file) => {
 		if (err) return callback(err);
@@ -159,7 +159,7 @@ function convertSpanCorresp(pathXML, callback) {
 				if (nbOfMatch < 1) {
 					// Si c'est un corresp avec attribut smarties (Obligatoire)
 					if(corresp.indexOf("smarties") > (-1)){
-						console.info("Pas de correspondance trouvé pour " + pathXML + " corresp : " + corresp)
+						console.error("Pas de correspondance trouvé pour " + pathXML + " corresp : " + corresp)
 					}
 					// Sinon c'est juste un 2.0
 					else {
@@ -177,19 +177,19 @@ function convertSpanCorresp(pathXML, callback) {
 						lemma = lemma + $('spanGrp[type="wordForms"] span[target="' + target[i] + '"]').attr("lemma").replace(/\s|_/g, '').toLowerCase();
 					}
 
-					console.info("==========================");
-					console.info("Verif du lemme pour : " + pathXML + " corresp : " + corresp + " (Expression : " + expressionL + " / Lemma : " + lemma + ") ");
-					console.info("Possibilité : ", matched);
+					console.error("==========================");
+					console.error("Verif du lemme pour : " + pathXML + " corresp : " + corresp + " (Expression : " + expressionL + " / Lemma : " + lemma + ") ");
+					console.error("Possibilité : ", matched);
 
 					// Pour chaque match:  garde suivant le lemme
 					for(var index in matched){
 						if(matched[index].term == lemma){
-							console.info("Choix : "  +  matched[index].xmlid);
+							console.error("Choix : "  +  matched[index].xmlid);
 							matched = matched[index];
 							break;
 						}
 					}
-					console.info("==========================");
+					console.error("==========================");
 				}
 				// Si un seul match
 				else{
@@ -206,11 +206,10 @@ function convertSpanCorresp(pathXML, callback) {
 
 		}, (err) => {
 			if (err) return callback(err);
-
-			// Tous els spans traités , ecriture dans le fichier
+			process.stdout.write(kuler("Fichier(s) traité(s) : " + nbDone++  + "\r", "orange"));
+			// Tous les spans traités , ecriture dans le fichier
 			fs.writeFile(pathXML, $.xml(), callback);
 		});
-
 	});
 };
 
@@ -247,11 +246,6 @@ function checkPath(path2check, done) {
 				});
 			})();
 
-			// list.forEach((file) => {
-			// 	file = path.resolve(path2check, file);
-			// 	// Recursivité
-			// 	checkPath(file,done);
-			// });
 		});
 	});
 }
